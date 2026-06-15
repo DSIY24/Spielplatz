@@ -102,6 +102,9 @@ let selectedZones  = new Set();
 let selectStart    = null;
 let groupDragState = null;
 let _blockIdSeq    = 0;
+let _clipboard     = null;
+let _pasteOffset   = 0;
+let _ctxCursor     = { x: 0, y: 0 };
 
 // ── History ───────────────────────────────────────────────────────────────────
 let _history    = [];
@@ -313,6 +316,18 @@ function _makeZone(caseType, x, y, w, h) {
   handle.className = 'zone-handle';
   handle.innerHTML = `<svg viewBox="0 0 12 12" fill="currentColor"><circle cx="3.5" cy="2" r="1"/><circle cx="8.5" cy="2" r="1"/><circle cx="3.5" cy="6" r="1"/><circle cx="8.5" cy="6" r="1"/><circle cx="3.5" cy="10" r="1"/><circle cx="8.5" cy="10" r="1"/></svg>`;
   el.appendChild(handle);
+
+  handle.addEventListener('contextmenu', ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const zd = zones.find(z => z.el === el);
+    if (zd && !selectedZones.has(zd)) {
+      clearSelection();
+      selectedZones.add(zd); el.classList.add('zone-selected');
+    }
+    const cr = canvas.getBoundingClientRect();
+    _ctxCursor = { x: ev.clientX - cr.left, y: ev.clientY - cr.top };
+    _openCtxMenu(ev.clientX, ev.clientY);
+  });
 
   handle.addEventListener('mousedown', ev => {
     ev.preventDefault(); ev.stopPropagation();
@@ -636,13 +651,23 @@ searchResultsEl.addEventListener('mousedown', e => {
   createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
 });
 
+searchInput.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const item = searchResultsEl.querySelector('.result-item');
+  if (!item) return;
+  const noun = { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
+  searchResultsEl.classList.remove('open'); searchInput.value = '';
+  const cr = canvas.getBoundingClientRect();
+  createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
+});
+
 document.addEventListener('mousedown', e => {
   if (!searchResultsEl.contains(e.target) && e.target !== searchInput) searchResultsEl.classList.remove('open');
 });
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key==='Escape') clearSelection();
+  if (e.key==='Escape') { clearSelection(); _closeCtxMenu(); }
   if ((e.key==='Delete'||e.key==='Backspace') && isAnySelected() && document.activeElement!==searchInput) {
     deleteSelected(); pushHistory();
   }
@@ -706,6 +731,188 @@ document.addEventListener('mousedown', e => {
 });
 toggleGender.addEventListener('change', () => {
   document.body.classList.toggle('gender-hints', toggleGender.checked);
+});
+
+// ── Context menu ─────────────────────────────────────────────────────────────
+const ctxMenu  = document.getElementById('ctx-menu');
+const ctxCopy  = document.getElementById('ctx-copy');
+const ctxCut   = document.getElementById('ctx-cut');
+const ctxPaste = document.getElementById('ctx-paste');
+const ctxAlign = document.getElementById('ctx-align');
+
+function _closeCtxMenu() { ctxMenu.classList.remove('open'); }
+
+function _openCtxMenu(x, y) {
+  const hasSel = isAnySelected();
+  ctxCopy.classList.toggle('disabled',  !hasSel);
+  ctxCut.classList.toggle('disabled',   !hasSel);
+  ctxPaste.classList.toggle('disabled', _clipboard === null);
+  ctxAlign.classList.toggle('disabled', selectedBlocks.size < 2);
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top  = y + 'px';
+  ctxMenu.classList.add('open');
+}
+
+function _copySelection() {
+  if (!isAnySelected()) return;
+  const bArr = [...selectedBlocks];
+  const zArr = [...selectedZones];
+  let minX = Infinity, minY = Infinity;
+  bArr.forEach(b => { minX = Math.min(minX, parseInt(b.style.left)); minY = Math.min(minY, parseInt(b.style.top)); });
+  zArr.forEach(z => { minX = Math.min(minX, z.x); minY = Math.min(minY, z.y); });
+  if (!isFinite(minX)) { minX = 0; minY = 0; }
+  _clipboard = {
+    blocks: bArr.map(b => ({
+      type: b._meta.type,
+      article: b.dataset.article,
+      nounData: b._meta.type === 'noun' ? { ...b._meta.data } : null,
+      relX: parseInt(b.style.left) - minX,
+      relY: parseInt(b.style.top) - minY,
+      pairedIdx: b._meta.paired ? bArr.indexOf(b._meta.paired) : -1
+    })),
+    zones: zArr.map(z => ({ case: z.case, w: z.w, h: z.h, relX: z.x - minX, relY: z.y - minY }))
+  };
+  _pasteOffset = 0;
+}
+
+function doCtxCopy() { _copySelection(); _closeCtxMenu(); }
+
+function doCtxCut() {
+  _copySelection();
+  deleteSelected();
+  pushHistory();
+  _closeCtxMenu();
+}
+
+function doCtxPaste() {
+  if (!_clipboard) return;
+  _noRecord = true;
+  clearSelection();
+  const ox = _ctxCursor.x + _pasteOffset;
+  const oy = _ctxCursor.y + _pasteOffset;
+  _pasteOffset += 20;
+
+  const newBlocks = _clipboard.blocks.map(bd => {
+    const el = bd.type === 'noun'
+      ? _makeNounBlock(bd.nounData, ox + bd.relX, oy + bd.relY)
+      : _makeArticleBlock(bd.article, ox + bd.relX, oy + bd.relY);
+    return el;
+  });
+
+  // Restore pairs
+  _clipboard.blocks.forEach((bd, i) => {
+    if (bd.pairedIdx > i) {
+      const a = newBlocks[i], b = newBlocks[bd.pairedIdx];
+      const articleEl = a._meta.type === 'article' ? a : b;
+      const nounEl    = a._meta.type === 'noun'    ? a : b;
+      articleEl._meta.paired = nounEl;
+      nounEl._meta.paired = articleEl;
+    }
+  });
+
+  // Paste zones
+  const newZones = _clipboard.zones.map(zd => {
+    _makeZone(zd.case, ox + zd.relX, oy + zd.relY, zd.w, zd.h);
+    return zones[zones.length - 1];
+  });
+
+  // Select all pasted items
+  newBlocks.forEach(b => { selectedBlocks.add(b); b.classList.add('selected'); });
+  newZones.forEach(z => { selectedZones.add(z); z.el.classList.add('zone-selected'); });
+
+  _noRecord = false;
+  reEvaluateAllPairs();
+  pushHistory();
+  _closeCtxMenu();
+}
+
+function doCtxAlign() {
+  if (selectedBlocks.size < 2) return;
+
+  // Primaries: nouns + article blocks that are NOT paired with a selected noun
+  const primaries = [...selectedBlocks].filter(b =>
+    b._meta.type === 'noun' || !b._meta.paired || !selectedBlocks.has(b._meta.paired)
+  );
+  primaries.sort((a, b) => parseInt(a.style.top) - parseInt(b.style.top));
+
+  const alignX = Math.min(...primaries.map(b => parseInt(b.style.left)));
+
+  // Record zone containment for nouns BEFORE any movement
+  const cr = canvas.getBoundingClientRect();
+  const nounZoneMap = new Map();
+  primaries.forEach(b => {
+    if (b._meta.type !== 'noun') return;
+    const nr = b.getBoundingClientRect();
+    const nx = nr.left - cr.left + nr.width / 2;
+    const ny = nr.top  - cr.top  + nr.height / 2;
+    for (let i = zones.length - 1; i >= 0; i--) {
+      const z = zones[i];
+      if (nx >= z.x && nx <= z.x + z.w && ny >= z.y && ny <= z.y + z.h) {
+        nounZoneMap.set(b, z); break;
+      }
+    }
+  });
+
+  const BLOCK_H = 42, GAP = 8;
+  let currentY = parseInt(primaries[0].style.top);
+  const movedZones = new Set();
+
+  primaries.forEach(b => {
+    const oldLeft = parseInt(b.style.left);
+    const oldTop  = parseInt(b.style.top);
+
+    b.style.left = alignX + 'px';
+    b.style.top  = currentY + 'px';
+
+    if (b._meta.type === 'noun' && b._meta.paired) {
+      b._meta.paired.style.left = (alignX - 88) + 'px';
+      b._meta.paired.style.top  = currentY + 'px';
+    }
+
+    if (b._meta.type === 'noun' && nounZoneMap.has(b) && !movedZones.has(nounZoneMap.get(b))) {
+      const z = nounZoneMap.get(b);
+      movedZones.add(z);
+      z.x += alignX - oldLeft;
+      z.y += currentY - oldTop;
+      z.el.style.left = z.x + 'px';
+      z.el.style.top  = z.y + 'px';
+    }
+
+    currentY += BLOCK_H + GAP;
+  });
+
+  reEvaluateAllPairs();
+  pushHistory();
+  _closeCtxMenu();
+}
+
+ctxCopy.addEventListener('click',  doCtxCopy);
+ctxCut.addEventListener('click',   doCtxCut);
+ctxPaste.addEventListener('click', doCtxPaste);
+ctxAlign.addEventListener('click', doCtxAlign);
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (drawingCase) return;
+  const cr = canvas.getBoundingClientRect();
+  _ctxCursor = { x: e.clientX - cr.left, y: e.clientY - cr.top };
+
+  const blockEl = e.target.closest('.block');
+  if (blockEl && allBlocks.includes(blockEl)) {
+    if (!selectedBlocks.has(blockEl)) {
+      clearSelection();
+      selectedBlocks.add(blockEl); blockEl.classList.add('selected');
+      if (blockEl._meta.paired) {
+        selectedBlocks.add(blockEl._meta.paired);
+        blockEl._meta.paired.classList.add('selected');
+      }
+    }
+  }
+  _openCtxMenu(e.clientX, e.clientY);
+});
+
+document.addEventListener('mousedown', e => {
+  if (!ctxMenu.contains(e.target)) _closeCtxMenu();
 });
 
 // ── Initial history state ─────────────────────────────────────────────────────

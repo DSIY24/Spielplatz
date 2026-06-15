@@ -2,9 +2,6 @@
 
 An interactive drag-and-drop tool for practising German grammatical articles across Nominativ, Akkusativ, and Dativ cases.
 
-## Getting started
-
-No installation required. Open `german_article_trainer.html` directly in a browser.
 
 ## Features
 
