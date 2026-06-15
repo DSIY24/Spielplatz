@@ -3,12 +3,14 @@
 const CORRECT = {
   nominativ: { der:['der','ein'],   die:['die','eine'],   das:['das','ein']   },
   akkusativ: { der:['den','einen'], die:['die','eine'],   das:['das','ein']   },
-  dativ:     { der:['dem','einem'], die:['der','einer'],  das:['dem','einem'] }
+  dativ:     { der:['dem','einem'], die:['der','einer'],  das:['dem','einem'] },
+  genitiv:   { der:['des','eines'], die:['der','einer'],  das:['des','eines'] }
 };
 
 const ARTICLE_LABEL = {
   der:'der',die:'die',das:'das',ein:'ein',eine:'eine',
-  den:'den',einen:'einen',dem:'dem',einem:'einem',einer:'einer'
+  den:'den',einen:'einen',dem:'dem',einem:'einem',einer:'einer',
+  des:'des',eines:'eines'
 };
 
 // ── Nouns ─────────────────────────────────────────────────────────────────────
@@ -88,6 +90,7 @@ const drawGhost       = document.getElementById('draw-ghost');
 const selectGhost     = document.getElementById('select-ghost');
 const btnAkkusativ    = document.getElementById('btn-akkusativ');
 const btnDativ        = document.getElementById('btn-dativ');
+const btnGenitiv      = document.getElementById('btn-genitiv');
 const btnUndo         = document.getElementById('btn-undo');
 const btnRedo         = document.getElementById('btn-redo');
 
@@ -299,10 +302,12 @@ function activateDrawing(caseType) {
   drawingCase = drawingCase === caseType ? null : caseType;
   btnAkkusativ.classList.toggle('active', drawingCase === 'akkusativ');
   btnDativ.classList.toggle('active',     drawingCase === 'dativ');
+  btnGenitiv.classList.toggle('active',   drawingCase === 'genitiv');
   canvas.className = drawingCase ? 'drawing-' + drawingCase : '';
 }
 btnAkkusativ.addEventListener('click', () => activateDrawing('akkusativ'));
 btnDativ.addEventListener('click',     () => activateDrawing('dativ'));
+btnGenitiv.addEventListener('click',   () => activateDrawing('genitiv'));
 
 // ── Zone factory (internal — used by both user drawing and applySnapshot) ─────
 function _makeZone(caseType, x, y, w, h) {
@@ -311,12 +316,56 @@ function _makeZone(caseType, x, y, w, h) {
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   const label = document.createElement('div');
   label.className = 'zone-label';
-  label.textContent = caseType === 'akkusativ' ? 'Akkusativ' : 'Dativ';
+  label.textContent = { akkusativ:'Akkusativ', dativ:'Dativ', genitiv:'Genitiv' }[caseType] || caseType;
   el.appendChild(label);
   const handle = document.createElement('div');
   handle.className = 'zone-handle';
   handle.innerHTML = `<svg viewBox="0 0 12 12" fill="currentColor"><circle cx="3.5" cy="2" r="1"/><circle cx="8.5" cy="2" r="1"/><circle cx="3.5" cy="6" r="1"/><circle cx="8.5" cy="6" r="1"/><circle cx="3.5" cy="10" r="1"/><circle cx="8.5" cy="10" r="1"/></svg>`;
   el.appendChild(handle);
+
+  const RESIZE_DIRS = [
+    { cls:'rn',  top:true },
+    { cls:'rne', top:true,  right:true },
+    { cls:'re',             right:true },
+    { cls:'rse', bottom:true, right:true },
+    { cls:'rs',  bottom:true },
+    { cls:'rsw', bottom:true, left:true },
+    { cls:'rw',             left:true },
+    { cls:'rnw', top:true,  left:true },
+  ];
+  const MIN_SIZE = 60;
+  RESIZE_DIRS.forEach(({ cls, top: resizeTop, right: resizeRight, bottom: resizeBottom, left: resizeLeft }) => {
+    const rh = document.createElement('div');
+    rh.className = 'resize-handle ' + cls;
+    rh.addEventListener('mousedown', ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      clearSelection();
+      const zd = zones.find(z => z.el === el);
+      if (!zd) return;
+      const startMX = ev.clientX, startMY = ev.clientY;
+      const startX = zd.x, startY = zd.y, startW = zd.w, startH = zd.h;
+      function onMove(mv) {
+        const dx = mv.clientX - startMX, dy = mv.clientY - startMY;
+        let nx = startX, ny = startY, nw = startW, nh = startH;
+        if (resizeRight)  { nw = Math.max(MIN_SIZE, startW + dx); }
+        if (resizeBottom) { nh = Math.max(MIN_SIZE, startH + dy); }
+        if (resizeLeft)   { nw = Math.max(MIN_SIZE, startW - dx); nx = startX + startW - nw; }
+        if (resizeTop)    { nh = Math.max(MIN_SIZE, startH - dy); ny = startY + startH - nh; }
+        zd.x=nx; zd.y=ny; zd.w=nw; zd.h=nh;
+        el.style.left=nx+'px'; el.style.top=ny+'px';
+        el.style.width=nw+'px'; el.style.height=nh+'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        reEvaluateAllPairs();
+        pushHistory();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    el.appendChild(rh);
+  });
 
   handle.addEventListener('contextmenu', ev => {
     ev.preventDefault(); ev.stopPropagation();
@@ -380,7 +429,7 @@ function _makeZone(caseType, x, y, w, h) {
 
 // ── Canvas mousedown — marquee OR zone-draw ───────────────────────────────────
 canvas.addEventListener('mousedown', e => {
-  if (e.target.closest('#sidebar') || e.target.closest('.block') || e.target.closest('.zone-handle')) return;
+  if (e.target.closest('#sidebar') || e.target.closest('.block') || e.target.closest('.zone-handle') || e.target.closest('.resize-handle')) return;
   const cr = canvas.getBoundingClientRect();
   if (drawingCase) {
     e.preventDefault();
@@ -750,17 +799,19 @@ toggleShowCorrect.addEventListener('change', () => {
 const ctxMenu  = document.getElementById('ctx-menu');
 const ctxCopy  = document.getElementById('ctx-copy');
 const ctxCut   = document.getElementById('ctx-cut');
-const ctxPaste = document.getElementById('ctx-paste');
-const ctxAlign = document.getElementById('ctx-align');
+const ctxPaste  = document.getElementById('ctx-paste');
+const ctxDelete = document.getElementById('ctx-delete');
+const ctxAlign  = document.getElementById('ctx-align');
 
 function _closeCtxMenu() { ctxMenu.classList.remove('open'); }
 
 function _openCtxMenu(x, y) {
   const hasSel = isAnySelected();
-  ctxCopy.classList.toggle('disabled',  !hasSel);
-  ctxCut.classList.toggle('disabled',   !hasSel);
-  ctxPaste.classList.toggle('disabled', _clipboard === null);
-  ctxAlign.classList.toggle('disabled', selectedBlocks.size < 2);
+  ctxCopy.classList.toggle('disabled',   !hasSel);
+  ctxCut.classList.toggle('disabled',    !hasSel);
+  ctxPaste.classList.toggle('disabled',  _clipboard === null);
+  ctxDelete.classList.toggle('disabled', !hasSel);
+  ctxAlign.classList.toggle('disabled',  selectedBlocks.size < 2);
   ctxMenu.style.left = x + 'px';
   ctxMenu.style.top  = y + 'px';
   ctxMenu.classList.add('open');
@@ -866,7 +917,7 @@ function doCtxAlign() {
     }
   });
 
-  const BLOCK_H = 42, GAP = 8;
+  const BLOCK_H = 42, GAP = 24;
   let currentY = parseInt(primaries[0].style.top);
   const movedZones = new Set();
 
@@ -899,10 +950,11 @@ function doCtxAlign() {
   _closeCtxMenu();
 }
 
-ctxCopy.addEventListener('click',  doCtxCopy);
-ctxCut.addEventListener('click',   doCtxCut);
-ctxPaste.addEventListener('click', doCtxPaste);
-ctxAlign.addEventListener('click', doCtxAlign);
+ctxCopy.addEventListener('click',   doCtxCopy);
+ctxCut.addEventListener('click',    doCtxCut);
+ctxPaste.addEventListener('click',  doCtxPaste);
+ctxDelete.addEventListener('click', () => { deleteSelected(); pushHistory(); _closeCtxMenu(); });
+ctxAlign.addEventListener('click',  doCtxAlign);
 
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();

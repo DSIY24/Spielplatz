@@ -114,15 +114,19 @@ body {
 body.gender-hints .article-source[data-article="der"],
 body.gender-hints .article-source[data-article="den"],
 body.gender-hints .article-source[data-article="dem"],
+body.gender-hints .article-source[data-article="des"],
 body.gender-hints .article-source[data-article="ein"],
 body.gender-hints .article-source[data-article="einen"],
 body.gender-hints .article-source[data-article="einem"],
+body.gender-hints .article-source[data-article="eines"],
 body.gender-hints .block[data-article="der"],
 body.gender-hints .block[data-article="den"],
 body.gender-hints .block[data-article="dem"],
+body.gender-hints .block[data-article="des"],
 body.gender-hints .block[data-article="ein"],
 body.gender-hints .block[data-article="einen"],
-body.gender-hints .block[data-article="einem"] { color: #2563eb; border-color: #2563eb; }
+body.gender-hints .block[data-article="einem"],
+body.gender-hints .block[data-article="eines"] { color: #2563eb; border-color: #2563eb; }
 body.gender-hints .article-source[data-article="die"],
 body.gender-hints .article-source[data-article="eine"],
 body.gender-hints .article-source[data-article="einer"],
@@ -178,7 +182,8 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
   min-height: 500px;
 }
 #canvas.drawing-akkusativ,
-#canvas.drawing-dativ { cursor: crosshair !important; }
+#canvas.drawing-dativ,
+#canvas.drawing-genitiv { cursor: crosshair !important; }
 #canvas.selecting { cursor: crosshair !important; }
 .zone {
   position: absolute;
@@ -189,8 +194,10 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 .zone.dragging-zone { z-index: 900; }
 .zone.akkusativ { background: rgba(234,179,8,0.13); border: 1.5px solid rgba(202,138,4,0.5); }
 .zone.dativ     { background: rgba(139,92,246,0.12); border: 1.5px solid rgba(109,40,217,0.45); }
+.zone.genitiv   { background: rgba(16,185,129,0.11); border: 1.5px solid rgba(5,150,105,0.5); }
 .zone.bin-hover.akkusativ { background: rgba(234,179,8,0.28); border-color: #dc2626; }
 .zone.bin-hover.dativ     { background: rgba(139,92,246,0.28); border-color: #dc2626; }
+.zone.bin-hover.genitiv   { background: rgba(16,185,129,0.26); border-color: #dc2626; }
 .zone.zone-selected .zone-handle { outline: 2px solid rgba(59,130,246,0.8); outline-offset: 2px; opacity: 0.9; }
 .zone-handle {
   position: absolute;
@@ -207,6 +214,15 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 .zone-handle:hover { opacity: 0.9; background: rgba(0,0,0,0.06); }
 .zone-handle:active { cursor: grabbing; }
 .zone-handle svg { width: 12px; height: 12px; pointer-events: none; }
+.resize-handle { position: absolute; pointer-events: auto; z-index: 6; }
+.resize-handle.rn  { top: -4px;    left: 12px;   right: 12px;  height: 8px;  cursor: n-resize; }
+.resize-handle.rs  { bottom: -4px; left: 12px;   right: 12px;  height: 8px;  cursor: s-resize; }
+.resize-handle.re  { right: -4px;  top: 12px;    bottom: 12px; width: 8px;   cursor: e-resize; }
+.resize-handle.rw  { left: -4px;   top: 12px;    bottom: 12px; width: 8px;   cursor: w-resize; }
+.resize-handle.rne { top: -4px;    right: -4px;  width: 12px;  height: 12px; cursor: ne-resize; }
+.resize-handle.rse { bottom: -4px; right: -4px;  width: 12px;  height: 12px; cursor: se-resize; }
+.resize-handle.rsw { bottom: -4px; left: -4px;   width: 12px;  height: 12px; cursor: sw-resize; }
+.resize-handle.rnw { top: -4px;    left: -4px;   width: 12px;  height: 12px; cursor: nw-resize; }
 .zone-label {
   position: absolute;
   top: 6px; left: 8px;
@@ -215,6 +231,7 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 }
 .zone.akkusativ .zone-label { color: rgba(161,98,7,0.7); }
 .zone.dativ     .zone-label { color: rgba(91,33,182,0.65); }
+.zone.genitiv   .zone-label { color: rgba(4,120,87,0.7); }
 #draw-ghost {
   position: absolute;
   display: none;
@@ -224,6 +241,7 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 }
 #draw-ghost.akkusativ { background: rgba(234,179,8,0.18); border: 1.5px dashed rgba(202,138,4,0.7); }
 #draw-ghost.dativ     { background: rgba(139,92,246,0.15); border: 1.5px dashed rgba(109,40,217,0.6); }
+#draw-ghost.genitiv   { background: rgba(16,185,129,0.16); border: 1.5px dashed rgba(5,150,105,0.7); }
 #select-ghost {
   position: absolute;
   display: none;
@@ -260,10 +278,10 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 #articles-wrap {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  justify-content: space-evenly;
+  gap: 6px;
+  padding-top: 4px;
 }
-#case-selector { margin-top: auto; padding-bottom: 20px; }
+#case-selector { margin-top: 16px; padding-bottom: 20px; }
 .case-btn {
   width: 80px; height: 32px;
   border: 1.5px solid;
@@ -277,8 +295,10 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
 .case-btn:hover { box-shadow: 3px 3px 0 rgba(0,0,0,0.15); }
 .case-btn.akkusativ { color: #92400e; border-color: #ca8a04; }
 .case-btn.dativ     { color: #5b21b6; border-color: #7c3aed; }
+.case-btn.genitiv   { color: #065f46; border-color: #059669; }
 .case-btn.active.akkusativ { background: rgba(234,179,8,0.18); box-shadow: 3px 3px 0 #ca8a04; }
 .case-btn.active.dativ     { background: rgba(139,92,246,0.18); box-shadow: 3px 3px 0 #7c3aed; }
+.case-btn.active.genitiv   { background: rgba(16,185,129,0.18); box-shadow: 3px 3px 0 #059669; }
 .block {
   position: absolute;
   border: 1.5px solid #2a2a2a;
