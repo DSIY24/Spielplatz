@@ -105,6 +105,7 @@ let _blockIdSeq    = 0;
 let _clipboard     = null;
 let _pasteOffset   = 0;
 let _ctxCursor     = { x: 0, y: 0 };
+let _showCorrect   = true;
 
 // ── History ───────────────────────────────────────────────────────────────────
 let _history    = [];
@@ -547,11 +548,13 @@ function tryPair(dropped) {
   }
 }
 function applyMatch(articleEl, nounEl, correct) {
-  const cls = correct ? 'matched-correct' : 'matched-wrong';
-  articleEl.classList.remove('matched-correct','matched-wrong'); articleEl.classList.add(cls);
-  nounEl.classList.remove('matched-correct','matched-wrong');    nounEl.classList.add(cls);
   articleEl._meta.paired = nounEl; nounEl._meta.paired = articleEl;
   articleEl.style.left = (parseInt(nounEl.style.left)-88)+'px'; articleEl.style.top = nounEl.style.top;
+  if (_showCorrect) {
+    const cls = correct ? 'matched-correct' : 'matched-wrong';
+    articleEl.classList.remove('matched-correct','matched-wrong'); articleEl.classList.add(cls);
+    nounEl.classList.remove('matched-correct','matched-wrong');    nounEl.classList.add(cls);
+  }
 }
 function unpair(el) {
   const p = el._meta.paired;
@@ -577,10 +580,15 @@ function reEvaluateAllPairs() {
   for (const b of allBlocks) {
     if (b._meta.type==='noun' && b._meta.paired) {
       const nounEl=b, artEl=b._meta.paired;
-      const correct = (CORRECT[caseForNoun(nounEl)][nounEl.dataset.article]||[]).includes(artEl.dataset.article);
-      const cls = correct ? 'matched-correct' : 'matched-wrong';
-      artEl.classList.remove('matched-correct','matched-wrong'); artEl.classList.add(cls);
-      nounEl.classList.remove('matched-correct','matched-wrong'); nounEl.classList.add(cls);
+      if (_showCorrect) {
+        const correct = (CORRECT[caseForNoun(nounEl)][nounEl.dataset.article]||[]).includes(artEl.dataset.article);
+        const cls = correct ? 'matched-correct' : 'matched-wrong';
+        artEl.classList.remove('matched-correct','matched-wrong'); artEl.classList.add(cls);
+        nounEl.classList.remove('matched-correct','matched-wrong'); nounEl.classList.add(cls);
+      } else {
+        artEl.classList.remove('matched-correct','matched-wrong');
+        nounEl.classList.remove('matched-correct','matched-wrong');
+      }
     }
   }
 }
@@ -719,7 +727,8 @@ function scatterNounBlocks(nouns) {
 // ── Settings panel ───────────────────────────────────────────────────────────
 const settingsBtn   = document.getElementById('settings-btn');
 const settingsPanel = document.getElementById('settings-panel');
-const toggleGender  = document.getElementById('toggle-gender-hints');
+const toggleGender      = document.getElementById('toggle-gender-hints');
+const toggleShowCorrect = document.getElementById('toggle-show-correct');
 
 settingsBtn.addEventListener('click', e => {
   e.stopPropagation();
@@ -731,6 +740,10 @@ document.addEventListener('mousedown', e => {
 });
 toggleGender.addEventListener('change', () => {
   document.body.classList.toggle('gender-hints', toggleGender.checked);
+});
+toggleShowCorrect.addEventListener('change', () => {
+  _showCorrect = toggleShowCorrect.checked;
+  reEvaluateAllPairs();
 });
 
 // ── Context menu ─────────────────────────────────────────────────────────────
