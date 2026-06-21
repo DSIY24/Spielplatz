@@ -110,31 +110,59 @@ body {
 }
 .toggle-switch input:checked + .toggle-track { background: #1a1a1a; }
 .toggle-switch input:checked + .toggle-track::after { transform: translateX(16px); }
-/* ── Gender hint colours ─────────────────────────────────────────────── */
-body.gender-hints .article-source[data-article="der"],
-body.gender-hints .article-source[data-article="den"],
-body.gender-hints .article-source[data-article="dem"],
-body.gender-hints .article-source[data-article="des"],
-body.gender-hints .article-source[data-article="ein"],
-body.gender-hints .article-source[data-article="einen"],
-body.gender-hints .article-source[data-article="einem"],
-body.gender-hints .article-source[data-article="eines"],
-body.gender-hints .block[data-article="der"],
-body.gender-hints .block[data-article="den"],
-body.gender-hints .block[data-article="dem"],
-body.gender-hints .block[data-article="des"],
-body.gender-hints .block[data-article="ein"],
-body.gender-hints .block[data-article="einen"],
-body.gender-hints .block[data-article="einem"],
-body.gender-hints .block[data-article="eines"] { color: #2563eb; border-color: #2563eb; }
-body.gender-hints .article-source[data-article="die"],
-body.gender-hints .article-source[data-article="eine"],
-body.gender-hints .article-source[data-article="einer"],
-body.gender-hints .block[data-article="die"],
-body.gender-hints .block[data-article="eine"],
-body.gender-hints .block[data-article="einer"] { color: #db2777; border-color: #db2777; }
-body.gender-hints .article-source[data-article="das"],
-body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16a34a; }
+/* ── Gender hint colours (noun blocks: always single gender) ──────────── */
+body.gender-hints .noun-block[data-article="der"] { color: #2563eb; border-color: #2563eb; }
+body.gender-hints .noun-block[data-article="die"] { color: #db2777; border-color: #db2777; }
+body.gender-hints .noun-block[data-article="das"] { color: #16a34a; border-color: #16a34a; }
+
+/* ── Gender hint colours (article blocks/sources: may span genders) ───── */
+body.gender-hints .article-source[data-genders="m"],
+body.gender-hints .article-block[data-genders="m"] { color: #2563eb; border-color: #2563eb; }
+body.gender-hints .article-source[data-genders="f"],
+body.gender-hints .article-block[data-genders="f"] { color: #db2777; border-color: #db2777; }
+body.gender-hints .article-source[data-genders="n"],
+body.gender-hints .article-block[data-genders="n"] { color: #16a34a; border-color: #16a34a; }
+
+body.gender-hints .article-source[data-genders="m-f"],
+body.gender-hints .article-block[data-genders="m-f"] {
+  border-color: transparent;
+  border-image: linear-gradient(90deg, #2563eb 50%, #db2777 50%) 1;
+}
+body.gender-hints .article-source[data-genders="m-n"],
+body.gender-hints .article-block[data-genders="m-n"] {
+  border-color: transparent;
+  border-image: linear-gradient(90deg, #2563eb 50%, #16a34a 50%) 1;
+}
+body.gender-hints .article-source[data-genders="f-n"],
+body.gender-hints .article-block[data-genders="f-n"] {
+  border-color: transparent;
+  border-image: linear-gradient(90deg, #db2777 50%, #16a34a 50%) 1;
+}
+body.gender-hints .article-source[data-genders="m-f-n"],
+body.gender-hints .article-block[data-genders="m-f-n"] {
+  border-color: transparent;
+  border-image: linear-gradient(90deg, #2563eb 33.33%, #db2777 33.33%, #db2777 66.66%, #16a34a 66.66%) 1;
+}
+body.gender-hints .article-source[data-genders="m-f"] .art-label,
+body.gender-hints .article-block[data-genders="m-f"] .art-label {
+  background: linear-gradient(90deg, #2563eb 50%, #db2777 50%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+body.gender-hints .article-source[data-genders="m-n"] .art-label,
+body.gender-hints .article-block[data-genders="m-n"] .art-label {
+  background: linear-gradient(90deg, #2563eb 50%, #16a34a 50%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+body.gender-hints .article-source[data-genders="f-n"] .art-label,
+body.gender-hints .article-block[data-genders="f-n"] .art-label {
+  background: linear-gradient(90deg, #db2777 50%, #16a34a 50%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+body.gender-hints .article-source[data-genders="m-f-n"] .art-label,
+body.gender-hints .article-block[data-genders="m-f-n"] .art-label {
+  background: linear-gradient(90deg, #2563eb 33.33%, #db2777 33.33%, #db2777 66.66%, #16a34a 66.66%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
 #undo-redo {
   position: absolute;
   left: 110px;
@@ -331,8 +359,18 @@ body.gender-hints .block[data-article="das"] { color: #16a34a; border-color: #16
   font-family: 'Fraunces', serif; font-size: 15px; font-weight: 400; color: #1a1a1a;
   white-space: nowrap; min-width: 100px;
 }
-.matched-correct { background: #d1fae5 !important; border-color: #16a34a !important; color: #166534 !important; }
-.matched-wrong   { background: #fee2e2 !important; border-color: #dc2626 !important; color: #991b1b !important; }
+.matched-correct {
+  background: #d1fae5 !important; border-color: #16a34a !important; color: #166534 !important;
+  border-image: none !important; background-clip: border-box !important; -webkit-background-clip: border-box !important;
+}
+.matched-wrong {
+  background: #fee2e2 !important; border-color: #dc2626 !important; color: #991b1b !important;
+  border-image: none !important; background-clip: border-box !important; -webkit-background-clip: border-box !important;
+}
+.matched-correct .art-label, .matched-wrong .art-label {
+  background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important;
+  color: inherit !important;
+}
 #bin {
   position: fixed; bottom: 20px; right: 20px;
   width: 52px; height: 52px; border-radius: 50%;

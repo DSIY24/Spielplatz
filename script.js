@@ -13,6 +13,22 @@ const ARTICLE_LABEL = {
   des:'des',eines:'eines'
 };
 
+// Which gender(s) each article string can represent, derived from CORRECT
+// (e.g. "der" is nominativ-masculine AND dativ/genitiv-feminine).
+const ARTICLE_GENDERS = {};
+for (const caseTable of Object.values(CORRECT)) {
+  for (const [genderKey, forms] of Object.entries(caseTable)) {
+    const g = { der:'m', die:'f', das:'n' }[genderKey];
+    forms.forEach(form => {
+      (ARTICLE_GENDERS[form] ||= new Set()).add(g);
+    });
+  }
+}
+const GENDER_ORDER = ['m','f','n'];
+for (const k in ARTICLE_GENDERS) {
+  ARTICLE_GENDERS[k] = GENDER_ORDER.filter(g => ARTICLE_GENDERS[k].has(g)).join('-');
+}
+
 // ── Nouns ─────────────────────────────────────────────────────────────────────
 const NOUNS = [
   {n:"Hund",a:"der",e:"dog"},{n:"Katze",a:"die",e:"cat"},{n:"Haus",a:"das",e:"house"},
@@ -222,8 +238,12 @@ function _makeArticleBlock(article, x, y) {
   const el = document.createElement('div');
   el.className = 'block article-block type-' + article;
   el.style.left = x + 'px'; el.style.top = y + 'px';
-  el.textContent = ARTICLE_LABEL[article] || article;
+  const label = document.createElement('span');
+  label.className = 'art-label';
+  label.textContent = ARTICLE_LABEL[article] || article;
+  el.appendChild(label);
   el.dataset.type = 'article'; el.dataset.article = article; el.dataset.canvas = '1';
+  el.dataset.genders = ARTICLE_GENDERS[article];
   el._meta = { type: 'article', data: { article }, paired: null };
   el._id = ++_blockIdSeq;
   el.addEventListener('mousedown', onBlockMouseDown);
@@ -774,6 +794,9 @@ function scatterNounBlocks(nouns) {
 }
 
 // ── Settings panel ───────────────────────────────────────────────────────────
+document.querySelectorAll('.article-source').forEach(src => {
+  src.dataset.genders = ARTICLE_GENDERS[src.dataset.article];
+});
 const settingsBtn   = document.getElementById('settings-btn');
 const settingsPanel = document.getElementById('settings-panel');
 const toggleGender      = document.getElementById('toggle-gender-hints');
