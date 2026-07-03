@@ -13,6 +13,24 @@ const ARTICLE_LABEL = {
   des:'des',eines:'eines'
 };
 
+const SUFFIX_LABELS = { n:'-n', en:'-en', s:'-s', es:'-es' };
+
+function isMono(word) { return (word.match(/[aeiouäöüAEIOUÄÖÜ]+/g)||[]).length === 1; }
+function endsSibilant(word) { return /[sßzx]$/i.test(word) || /sch$/i.test(word); }
+function correctSuffix(noun, caseType) {
+  const gender = noun.a, text = noun.n, decl = noun.decl || 'strong';
+  if (decl === 'weak') {
+    return caseType === 'nominativ' ? null : (/e$/i.test(text) ? 'n' : 'en');
+  }
+  if (decl === 'mixed') {
+    if (caseType === 'nominativ' || caseType === 'genitiv') return null;
+    return /e$/i.test(text) ? 'n' : 'en';
+  }
+  if (caseType !== 'genitiv') return null;
+  if (gender === 'die') return null;
+  return (isMono(text) || endsSibilant(text)) ? 'es' : 's';
+}
+
 // Which gender(s) each article string can represent, derived from CORRECT
 // (e.g. "der" is nominativ-masculine AND dativ/genitiv-feminine).
 const ARTICLE_GENDERS = {};
@@ -44,10 +62,10 @@ const NOUNS = [
   {n:"Stern",a:"der",e:"star"},{n:"Himmel",a:"der",e:"sky"},{n:"Wolke",a:"die",e:"cloud"},
   {n:"Regen",a:"der",e:"rain"},{n:"Schnee",a:"der",e:"snow"},{n:"Wind",a:"der",e:"wind"},
   {n:"Feuer",a:"das",e:"fire"},{n:"Erde",a:"die",e:"earth"},{n:"Luft",a:"die",e:"air"},
-  {n:"Herz",a:"das",e:"heart"},{n:"Hand",a:"die",e:"hand"},{n:"Kopf",a:"der",e:"head"},
+  {n:"Herz",a:"das",e:"heart",decl:"mixed"},{n:"Hand",a:"die",e:"hand"},{n:"Kopf",a:"der",e:"head"},
   {n:"Auge",a:"das",e:"eye"},{n:"Ohr",a:"das",e:"ear"},{n:"Mund",a:"der",e:"mouth"},
   {n:"Nase",a:"die",e:"nose"},{n:"Haar",a:"das",e:"hair"},{n:"Stimme",a:"die",e:"voice"},
-  {n:"Name",a:"der",e:"name"},{n:"Zeit",a:"die",e:"time"},{n:"Tag",a:"der",e:"day"},
+  {n:"Name",a:"der",e:"name",decl:"mixed"},{n:"Zeit",a:"die",e:"time"},{n:"Tag",a:"der",e:"day"},
   {n:"Nacht",a:"die",e:"night"},{n:"Jahr",a:"das",e:"year"},{n:"Stunde",a:"die",e:"hour"},
   {n:"Minute",a:"die",e:"minute"},{n:"Woche",a:"die",e:"week"},{n:"Monat",a:"der",e:"month"},
   {n:"Schule",a:"die",e:"school"},{n:"Universität",a:"die",e:"university"},{n:"Lehrer",a:"der",e:"teacher"},
@@ -56,7 +74,7 @@ const NOUNS = [
   {n:"Bruder",a:"der",e:"brother"},{n:"Schwester",a:"die",e:"sister"},{n:"Baby",a:"das",e:"baby"},
   {n:"Tier",a:"das",e:"animal"},{n:"Vogel",a:"der",e:"bird"},{n:"Fisch",a:"der",e:"fish"},
   {n:"Pferd",a:"das",e:"horse"},{n:"Kuh",a:"die",e:"cow"},{n:"Schwein",a:"das",e:"pig"},
-  {n:"Schaf",a:"das",e:"sheep"},{n:"Maus",a:"die",e:"mouse"},{n:"Bär",a:"der",e:"bear"},
+  {n:"Schaf",a:"das",e:"sheep"},{n:"Maus",a:"die",e:"mouse"},{n:"Bär",a:"der",e:"bear",decl:"weak"},
   {n:"Wolf",a:"der",e:"wolf"},{n:"Fuchs",a:"der",e:"fox"},{n:"Löwe",a:"der",e:"lion"},
   {n:"Tiger",a:"der",e:"tiger"},{n:"Elefant",a:"der",e:"elephant"},{n:"Affe",a:"der",e:"monkey"},
   {n:"Schlange",a:"die",e:"snake"},{n:"Frosch",a:"der",e:"frog"},{n:"Fleisch",a:"das",e:"meat"},
@@ -134,14 +152,16 @@ let _noRecord   = false;  // suppress pushHistory during applySnapshot
 function _snapshot() {
   return {
     blocks: allBlocks.map(b => ({
-      id:        b._id,
-      type:      b._meta.type,
-      article:   b.dataset.article,
-      nounData:  b._meta.type === 'noun' ? b._meta.data : null,
-      left:      b.style.left,
-      top:       b.style.top,
-      className: b.className,
-      pairedId:  b._meta.paired ? b._meta.paired._id : null
+      id:            b._id,
+      type:          b._meta.type,
+      article:       b.dataset.article,
+      suffix:        b._meta.type === 'suffix' ? b.dataset.suffix : null,
+      nounData:      b._meta.type === 'noun' ? b._meta.data : null,
+      left:          b.style.left,
+      top:           b.style.top,
+      className:     b.className,
+      pairedId:      b._meta.paired ? b._meta.paired._id : null,
+      suffixPairedId:b._meta.type === 'noun' ? (b._meta.suffixPaired ? b._meta.suffixPaired._id : null) : null
     })),
     zones: zones.map(z => ({ case: z.case, x: z.x, y: z.y, w: z.w, h: z.h }))
   };
@@ -175,7 +195,9 @@ function _applySnapshot(snap) {
   snap.blocks.forEach(bd => {
     const el = bd.type === 'noun'
       ? _makeNounBlock(bd.nounData, parseInt(bd.left), parseInt(bd.top))
-      : _makeArticleBlock(bd.article, parseInt(bd.left), parseInt(bd.top));
+      : bd.type === 'suffix'
+        ? _makeSuffixBlock(bd.suffix, parseInt(bd.left), parseInt(bd.top))
+        : _makeArticleBlock(bd.article, parseInt(bd.left), parseInt(bd.top));
     el._id = bd.id;
     el.className = bd.className;
     idMap[bd.id] = el;
@@ -184,6 +206,9 @@ function _applySnapshot(snap) {
   snap.blocks.forEach(bd => {
     if (bd.pairedId && idMap[bd.pairedId]) {
       idMap[bd.id]._meta.paired = idMap[bd.pairedId];
+    }
+    if (bd.suffixPairedId && idMap[bd.suffixPairedId]) {
+      idMap[bd.id]._meta.suffixPaired = idMap[bd.suffixPairedId];
     }
   });
   // rebuild zones
@@ -228,7 +253,7 @@ function _makeNounBlock(noun, x, y) {
   el.style.left = x + 'px'; el.style.top = y + 'px';
   el.textContent = noun.n;
   el.dataset.type = 'noun'; el.dataset.article = noun.a;
-  el._meta = { type: 'noun', data: noun, paired: null };
+  el._meta = { type: 'noun', data: noun, paired: null, suffixPaired: null };
   el._id = ++_blockIdSeq;
   el.addEventListener('mousedown', onBlockMouseDown);
   canvas.appendChild(el); allBlocks.push(el);
@@ -260,9 +285,29 @@ function createNounBlock(noun, x, y) {
 function createArticleBlock(article, x, y) {
   return _makeArticleBlock(article, x, y); // history pushed after drag ends
 }
+function _makeSuffixBlock(suffix, x, y) {
+  const el = document.createElement('div');
+  el.className = 'block suffix-block type-' + suffix;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  const label = document.createElement('span');
+  label.className = 'suffix-label';
+  label.textContent = SUFFIX_LABELS[suffix] || '-' + suffix;
+  el.appendChild(label);
+  el.dataset.type = 'suffix'; el.dataset.suffix = suffix; el.dataset.canvas = '1';
+  el._meta = { type: 'suffix', data: { suffix }, paired: null };
+  el._id = ++_blockIdSeq;
+  el.addEventListener('mousedown', onBlockMouseDown);
+  canvas.appendChild(el); allBlocks.push(el);
+  return el;
+}
+function createSuffixBlock(suffix, x, y) {
+  return _makeSuffixBlock(suffix, x, y);
+}
 
 // ── Delete helpers ────────────────────────────────────────────────────────────
 function deleteBlock(el) {
+  if (el._meta.type === 'suffix' && el._meta.paired) unpairSuffix(el);
+  else if (el._meta.type === 'noun' && el._meta.suffixPaired) unpairSuffix(el._meta.suffixPaired);
   if (el._meta.paired) unpair(el);
   el.removeEventListener('mousedown', onBlockMouseDown);
   el.remove();
@@ -273,6 +318,8 @@ function deleteSelected() {
   selectedZones.clear();
   const toDelete = [...selectedBlocks];
   toDelete.forEach(b => {
+    if (b._meta && b._meta.type === 'suffix' && b._meta.paired && !selectedBlocks.has(b._meta.paired)) unpairSuffix(b);
+    else if (b._meta && b._meta.type === 'noun' && b._meta.suffixPaired && !selectedBlocks.has(b._meta.suffixPaired)) unpairSuffix(b._meta.suffixPaired);
     if (b._meta && b._meta.paired && !selectedBlocks.has(b._meta.paired)) unpair(b);
   });
   toDelete.forEach(b => {
@@ -303,6 +350,9 @@ function applyMarqueeSelection(sx, sy, ex, ey) {
       selectedBlocks.add(b); b.classList.add('selected');
       if (b._meta.paired && !selectedBlocks.has(b._meta.paired)) {
         selectedBlocks.add(b._meta.paired); b._meta.paired.classList.add('selected');
+      }
+      if (b._meta.suffixPaired && !selectedBlocks.has(b._meta.suffixPaired)) {
+        selectedBlocks.add(b._meta.suffixPaired); b._meta.suffixPaired.classList.add('selected');
       }
     }
   }
@@ -513,11 +563,12 @@ document.addEventListener('mousemove', e => {
     return;
   }
   if (!dragState) return;
-  const { el, offX, offY, canvasRect, companion, companionOffX, companionOffY } = dragState;
+  const { el, offX, offY, canvasRect, companion, companionOffX, companionOffY, companion2, companion2OffX, companion2OffY } = dragState;
   const nl = e.clientX - canvasRect.left - offX;
   const nt = e.clientY - canvasRect.top  - offY;
   el.style.left = nl+'px'; el.style.top = nt+'px';
   if (companion) { companion.style.left=(nl+companionOffX)+'px'; companion.style.top=(nt+companionOffY)+'px'; }
+  if (companion2) { companion2.style.left=(nl+companion2OffX)+'px'; companion2.style.top=(nt+companion2OffY)+'px'; }
   bin.classList.toggle('hover', isOverBin(el));
 });
 
@@ -560,15 +611,17 @@ document.addEventListener('mouseup', e => {
     return;
   }
   if (!dragState) return;
-  const { el, companion } = dragState;
+  const { el, companion, companion2 } = dragState;
   el.classList.remove('dragging');
   if (companion) companion.classList.remove('dragging');
+  if (companion2) companion2.classList.remove('dragging');
   bin.classList.remove('hover');
   if (isOverBin(el)) {
     if (companion) { el._meta.paired=null; companion._meta.paired=null; companion.remove(); allBlocks=allBlocks.filter(b=>b!==companion); }
+    if (companion2) { el._meta.suffixPaired=null; companion2._meta.paired=null; companion2.remove(); allBlocks=allBlocks.filter(b=>b!==companion2); }
     deleteBlock(el);
   } else {
-    if (companion) reEvaluateAllPairs(); else tryPair(el);
+    if (companion || companion2) reEvaluateAllPairs(); else tryPair(el);
   }
   pushHistory();
   dragState = null;
@@ -587,52 +640,111 @@ function onBlockMouseDown(e) {
   }
   clearSelection();
   let companion = null, companionOffX = 0, companionOffY = 0;
-  if (el._meta.type === 'noun' && el._meta.paired) {
-    companion = el._meta.paired;
-    const nr = el.getBoundingClientRect(), cr2 = companion.getBoundingClientRect();
-    companionOffX = cr2.left - nr.left; companionOffY = cr2.top - nr.top;
-    companion.classList.add('dragging');
+  let companion2 = null, companion2OffX = 0, companion2OffY = 0;
+  if (el._meta.type === 'noun') {
+    if (el._meta.paired) {
+      companion = el._meta.paired;
+      const nr = el.getBoundingClientRect(), cr2 = companion.getBoundingClientRect();
+      companionOffX = cr2.left - nr.left; companionOffY = cr2.top - nr.top;
+      companion.classList.add('dragging');
+    }
+    if (el._meta.suffixPaired) {
+      companion2 = el._meta.suffixPaired;
+      const nr = el.getBoundingClientRect(), sr = companion2.getBoundingClientRect();
+      companion2OffX = sr.left - nr.left; companion2OffY = sr.top - nr.top;
+      companion2.classList.add('dragging');
+    }
+  } else if (el._meta.type === 'suffix') {
+    if (el._meta.paired) unpairSuffix(el);
   } else if (el._meta.paired) {
     unpair(el);
   }
   el.classList.add('dragging');
   const rect = el.getBoundingClientRect(), canvasRect = canvas.getBoundingClientRect();
-  dragState = { el, offX:e.clientX-rect.left, offY:e.clientY-rect.top, canvasRect, companion, companionOffX, companionOffY };
+  dragState = { el, offX:e.clientX-rect.left, offY:e.clientY-rect.top, canvasRect, companion, companionOffX, companionOffY, companion2, companion2OffX, companion2OffY };
 }
 
 // ── Pairing logic ─────────────────────────────────────────────────────────────
+function reEvaluateNounMatch(nounEl) {
+  const caseType = caseForNoun(nounEl);
+  let anyWrong = false, anyCorrect = false;
+  if (nounEl._meta.paired) {
+    const artEl = nounEl._meta.paired;
+    const c = (CORRECT[caseType][nounEl.dataset.article]||[]).includes(artEl.dataset.article);
+    artEl.classList.remove('matched-correct','matched-wrong');
+    artEl.classList.add(c ? 'matched-correct' : 'matched-wrong');
+    c ? anyCorrect = true : anyWrong = true;
+  }
+  if (nounEl._meta.suffixPaired) {
+    const sfxEl = nounEl._meta.suffixPaired;
+    const c = correctSuffix(nounEl._meta.data, caseType) === sfxEl.dataset.suffix;
+    sfxEl.classList.remove('matched-correct','matched-wrong');
+    sfxEl.classList.add(c ? 'matched-correct' : 'matched-wrong');
+    c ? anyCorrect = true : anyWrong = true;
+  }
+  const requiredSuffix = correctSuffix(nounEl._meta.data, caseType);
+  if (requiredSuffix !== null && !nounEl._meta.suffixPaired) anyWrong = true;
+  nounEl.classList.remove('matched-correct','matched-wrong');
+  if (!_showCorrect) return;
+  if (anyWrong) nounEl.classList.add('matched-wrong');
+  else if (anyCorrect) nounEl.classList.add('matched-correct');
+}
+
 function tryPair(dropped) {
   const dr = dropped.getBoundingClientRect();
   for (const other of allBlocks) {
-    if (other === dropped || other._meta.paired || other._meta.type === dropped._meta.type) continue;
+    if (other === dropped) continue;
+    const types = [dropped._meta.type, other._meta.type].sort().join('-');
     const or = other.getBoundingClientRect();
-    if (Math.hypot((dr.left+dr.width/2)-(or.left+or.width/2),(dr.top+dr.height/2)-(or.top+or.height/2)) < 90) {
-      const articleEl = dropped._meta.type==='article' ? dropped : other;
-      const nounEl    = dropped._meta.type==='noun'    ? dropped : other;
-      const caseType  = caseForNoun(nounEl);
-      const correct   = (CORRECT[caseType][nounEl.dataset.article]||[]).includes(articleEl.dataset.article);
-      applyMatch(articleEl, nounEl, correct);
-      return;
+    if (types === 'noun-suffix') {
+      const suffixEl = dropped._meta.type === 'suffix' ? dropped : other;
+      const nounEl   = dropped._meta.type === 'noun'   ? dropped : other;
+      if (suffixEl._meta.paired || nounEl._meta.suffixPaired) continue;
+      if (Math.hypot((dr.left+dr.width/2)-(or.left+or.width/2),(dr.top+dr.height/2)-(or.top+or.height/2)) < 90) {
+        applyMatchSuffix(suffixEl, nounEl);
+        return;
+      }
+    } else if (types === 'article-noun') {
+      const articleEl = dropped._meta.type === 'article' ? dropped : other;
+      const nounEl    = dropped._meta.type === 'noun'    ? dropped : other;
+      if (articleEl._meta.paired || nounEl._meta.paired) continue;
+      if (Math.hypot((dr.left+dr.width/2)-(or.left+or.width/2),(dr.top+dr.height/2)-(or.top+or.height/2)) < 90) {
+        applyMatch(articleEl, nounEl);
+        return;
+      }
     }
   }
 }
-function applyMatch(articleEl, nounEl, correct) {
+function applyMatch(articleEl, nounEl) {
   articleEl._meta.paired = nounEl; nounEl._meta.paired = articleEl;
   articleEl.style.left = (parseInt(nounEl.style.left)-88)+'px'; articleEl.style.top = nounEl.style.top;
-  if (_showCorrect) {
-    const cls = correct ? 'matched-correct' : 'matched-wrong';
-    articleEl.classList.remove('matched-correct','matched-wrong'); articleEl.classList.add(cls);
-    nounEl.classList.remove('matched-correct','matched-wrong');    nounEl.classList.add(cls);
-  }
+  if (_showCorrect) reEvaluateNounMatch(nounEl);
+}
+function applyMatchSuffix(suffixEl, nounEl) {
+  suffixEl._meta.paired = nounEl; nounEl._meta.suffixPaired = suffixEl;
+  suffixEl.style.left = (parseInt(nounEl.style.left) + nounEl.offsetWidth + 4)+'px';
+  suffixEl.style.top  = nounEl.style.top;
+  if (_showCorrect) reEvaluateNounMatch(nounEl);
 }
 function unpair(el) {
   const p = el._meta.paired;
   if (p) {
-    p._meta.paired = null; p.classList.remove('matched-correct','matched-wrong');
-    p.className = p._meta.type==='article' ? 'block article-block type-'+p.dataset.article : 'block noun-block';
+    p._meta.paired = null;
+    p.classList.remove('matched-correct','matched-wrong');
+    if (p._meta.type !== 'noun') p.className = 'block article-block type-'+p.dataset.article;
+    else reEvaluateNounMatch(p);
   }
-  el._meta.paired = null; el.classList.remove('matched-correct','matched-wrong');
-  el.className = el._meta.type==='article' ? 'block article-block type-'+el.dataset.article : 'block noun-block';
+  el._meta.paired = null;
+  el.classList.remove('matched-correct','matched-wrong');
+  if (el._meta.type !== 'noun') el.className = 'block article-block type-'+el.dataset.article;
+  else reEvaluateNounMatch(el);
+}
+function unpairSuffix(suffixEl) {
+  const nounEl = suffixEl._meta.paired;
+  suffixEl._meta.paired = null;
+  suffixEl.className = 'block suffix-block type-'+suffixEl.dataset.suffix;
+  suffixEl.classList.remove('matched-correct','matched-wrong');
+  if (nounEl) { nounEl._meta.suffixPaired = null; reEvaluateNounMatch(nounEl); }
 }
 
 // ── Zone hit-test ─────────────────────────────────────────────────────────────
@@ -647,17 +759,9 @@ function caseForNoun(nounEl) {
 }
 function reEvaluateAllPairs() {
   for (const b of allBlocks) {
-    if (b._meta.type==='noun' && b._meta.paired) {
-      const nounEl=b, artEl=b._meta.paired;
-      if (_showCorrect) {
-        const correct = (CORRECT[caseForNoun(nounEl)][nounEl.dataset.article]||[]).includes(artEl.dataset.article);
-        const cls = correct ? 'matched-correct' : 'matched-wrong';
-        artEl.classList.remove('matched-correct','matched-wrong'); artEl.classList.add(cls);
-        nounEl.classList.remove('matched-correct','matched-wrong'); nounEl.classList.add(cls);
-      } else {
-        artEl.classList.remove('matched-correct','matched-wrong');
-        nounEl.classList.remove('matched-correct','matched-wrong');
-      }
+    if (b._meta.type === 'noun') {
+      if (b._meta.paired || b._meta.suffixPaired) reEvaluateNounMatch(b);
+      else b.classList.remove('matched-correct','matched-wrong');
     }
   }
 }
@@ -676,6 +780,22 @@ document.querySelectorAll('.article-source').forEach(src => {
     const el = createArticleBlock(article, sr.left-cr.left, sr.top-cr.top);
     el.classList.add('dragging');
     dragState = { el, offX:e.clientX-sr.left, offY:e.clientY-sr.top, canvasRect:cr, companion:null, companionOffX:0, companionOffY:0 };
+  });
+});
+
+document.querySelectorAll('.suffix-source').forEach(src => {
+  src.addEventListener('mousedown', e => {
+    if (drawingCase) return;
+    for (const b of allBlocks) {
+      const br = b.getBoundingClientRect();
+      if (e.clientX>=br.left && e.clientX<=br.right && e.clientY>=br.top && e.clientY<=br.bottom) return;
+    }
+    e.preventDefault();
+    const suffix = src.dataset.suffix;
+    const sr = src.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+    const el = createSuffixBlock(suffix, sr.left-cr.left, sr.top-cr.top);
+    el.classList.add('dragging');
+    dragState = { el, offX:e.clientX-sr.left, offY:e.clientY-sr.top, canvasRect:cr, companion:null, companionOffX:0, companionOffY:0, companion2:null, companion2OffX:0, companion2OffY:0 };
   });
 });
 
@@ -722,7 +842,8 @@ searchResultsEl.addEventListener('mousedown', e => {
     searchInput.value = '';
     return;
   }
-  const noun = { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
+  const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
+            || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
   searchResultsEl.classList.remove('open'); searchInput.value = '';
   const cr = canvas.getBoundingClientRect();
   createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
@@ -732,7 +853,8 @@ searchInput.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   const item = searchResultsEl.querySelector('.result-item');
   if (!item) return;
-  const noun = { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
+  const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
+            || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
   searchResultsEl.classList.remove('open'); searchInput.value = '';
   const cr = canvas.getBoundingClientRect();
   createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
@@ -852,10 +974,12 @@ function _copySelection() {
     blocks: bArr.map(b => ({
       type: b._meta.type,
       article: b.dataset.article,
+      suffix: b._meta.type === 'suffix' ? b.dataset.suffix : null,
       nounData: b._meta.type === 'noun' ? { ...b._meta.data } : null,
       relX: parseInt(b.style.left) - minX,
       relY: parseInt(b.style.top) - minY,
-      pairedIdx: b._meta.paired ? bArr.indexOf(b._meta.paired) : -1
+      pairedIdx: b._meta.paired ? bArr.indexOf(b._meta.paired) : -1,
+      suffixPairedIdx: b._meta.type === 'noun' && b._meta.suffixPaired ? bArr.indexOf(b._meta.suffixPaired) : -1
     })),
     zones: zArr.map(z => ({ case: z.case, w: z.w, h: z.h, relX: z.x - minX, relY: z.y - minY }))
   };
@@ -882,7 +1006,9 @@ function doCtxPaste() {
   const newBlocks = _clipboard.blocks.map(bd => {
     const el = bd.type === 'noun'
       ? _makeNounBlock(bd.nounData, ox + bd.relX, oy + bd.relY)
-      : _makeArticleBlock(bd.article, ox + bd.relX, oy + bd.relY);
+      : bd.type === 'suffix'
+        ? _makeSuffixBlock(bd.suffix, ox + bd.relX, oy + bd.relY)
+        : _makeArticleBlock(bd.article, ox + bd.relX, oy + bd.relY);
     return el;
   });
 
@@ -894,6 +1020,13 @@ function doCtxPaste() {
       const nounEl    = a._meta.type === 'noun'    ? a : b;
       articleEl._meta.paired = nounEl;
       nounEl._meta.paired = articleEl;
+    }
+    if (bd.suffixPairedIdx > i) {
+      const a = newBlocks[i], b = newBlocks[bd.suffixPairedIdx];
+      const suffixEl = a._meta.type === 'suffix' ? a : b;
+      const nounEl   = a._meta.type === 'noun'   ? a : b;
+      suffixEl._meta.paired = nounEl;
+      nounEl._meta.suffixPaired = suffixEl;
     }
   });
 
@@ -955,6 +1088,10 @@ function doCtxAlign() {
       b._meta.paired.style.left = (alignX - 88) + 'px';
       b._meta.paired.style.top  = currentY + 'px';
     }
+    if (b._meta.type === 'noun' && b._meta.suffixPaired) {
+      b._meta.suffixPaired.style.left = (alignX + b.offsetWidth + 4) + 'px';
+      b._meta.suffixPaired.style.top  = currentY + 'px';
+    }
 
     if (b._meta.type === 'noun' && nounZoneMap.has(b) && !movedZones.has(nounZoneMap.get(b))) {
       const z = nounZoneMap.get(b);
@@ -993,6 +1130,10 @@ canvas.addEventListener('contextmenu', e => {
       if (blockEl._meta.paired) {
         selectedBlocks.add(blockEl._meta.paired);
         blockEl._meta.paired.classList.add('selected');
+      }
+      if (blockEl._meta.suffixPaired) {
+        selectedBlocks.add(blockEl._meta.suffixPaired);
+        blockEl._meta.suffixPaired.classList.add('selected');
       }
     }
   }
