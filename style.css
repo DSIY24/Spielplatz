@@ -163,6 +163,41 @@ body.gender-hints .article-block[data-genders="m-f-n"] .art-label {
   background: linear-gradient(90deg, #2563eb 33.33%, #db2777 33.33%, #db2777 66.66%, #16a34a 66.66%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+#gender-legend {
+  display: none;
+  position: fixed;
+  width: 170px;
+  background: #fff;
+  border: 1.5px solid #1a1a1a;
+  z-index: 320;
+  padding: 10px 12px;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+#gender-legend.show { display: flex; flex-direction: column; opacity: 1; }
+#gender-legend.fade-out { opacity: 0; pointer-events: none; }
+#gender-legend-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: #1a1a1a;
+  margin-bottom: 8px;
+}
+#gender-legend-close {
+  border: none; background: none; padding: 0;
+  font-size: 15px; line-height: 1; color: #999;
+  cursor: pointer;
+}
+#gender-legend-close:hover { color: #1a1a1a; }
+.legend-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #1a1a1a; letter-spacing: 0.02em;
+}
+.legend-row + .legend-row { margin-top: 6px; }
+.legend-swatch {
+  width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; display: inline-block;
+}
+.legend-swatch.masc { background: #2563eb; }
+.legend-swatch.fem  { background: #db2777; }
+.legend-swatch.neut { background: #16a34a; }
 #undo-redo {
   position: absolute;
   left: 110px;
@@ -305,6 +340,14 @@ body.gender-hints .article-block[data-genders="m-f-n"] .art-label {
   transition: box-shadow 0.1s, background 0.1s;
 }
 #sidebar-zoom button:hover { box-shadow: 2px 2px 0 #1a1a1a; background: #f7f5f0; }
+#sidebar-zoom #sidebar-legend-btn {
+  display: none;
+  width: auto;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+#sidebar-zoom #sidebar-legend-btn.visible { display: flex; }
 .article-source {
   width: calc(80px * var(--sb-scale, 1)); height: calc(36px * var(--sb-scale, 1));
   border: 1.5px solid #1a1a1a;

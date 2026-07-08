@@ -949,14 +949,48 @@ const toggleShowCorrect = document.getElementById('toggle-show-correct');
 
 settingsBtn.addEventListener('click', e => {
   e.stopPropagation();
+  const wasOpen = settingsPanel.classList.contains('open');
   settingsPanel.classList.toggle('open');
+  if (wasOpen) onSettingsPanelClosed();
 });
 document.addEventListener('mousedown', e => {
-  if (!settingsPanel.contains(e.target) && e.target !== settingsBtn)
+  if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+    const wasOpen = settingsPanel.classList.contains('open');
     settingsPanel.classList.remove('open');
+    if (wasOpen) onSettingsPanelClosed();
+  }
 });
+function onSettingsPanelClosed() {
+  if (toggleGender.checked && !legendDismissed) showGenderLegend();
+}
+const genderLegend      = document.getElementById('gender-legend');
+const genderLegendClose = document.getElementById('gender-legend-close');
+const sidebarLegendBtn  = document.getElementById('sidebar-legend-btn');
+let legendDismissed = false;
+
+function showGenderLegend() {
+  const sidebarRect = document.getElementById('sidebar').getBoundingClientRect();
+  const derRect = document.querySelector('.article-source[data-article="der"]').getBoundingClientRect();
+  genderLegend.style.left = (sidebarRect.right + 16) + 'px';
+  genderLegend.style.top = derRect.top + 'px';
+  genderLegend.classList.remove('fade-out');
+  genderLegend.classList.add('show');
+}
+function updateLegendBtnVisibility() {
+  sidebarLegendBtn.classList.toggle('visible', toggleGender.checked && legendDismissed);
+}
+genderLegendClose.addEventListener('click', () => {
+  legendDismissed = true;
+  genderLegend.classList.add('fade-out');
+  setTimeout(() => genderLegend.classList.remove('show'), 250);
+  updateLegendBtnVisibility();
+});
+sidebarLegendBtn.addEventListener('click', showGenderLegend);
+
 toggleGender.addEventListener('change', () => {
   document.body.classList.toggle('gender-hints', toggleGender.checked);
+  if (!toggleGender.checked) genderLegend.classList.remove('show');
+  updateLegendBtnVisibility();
 });
 toggleShowCorrect.addEventListener('change', () => {
   _showCorrect = toggleShowCorrect.checked;
