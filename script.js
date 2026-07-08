@@ -919,8 +919,8 @@ function scatterNounBlocks(nouns) {
 const sidebar        = document.getElementById('sidebar');
 const sidebarZoomIn  = document.getElementById('sidebar-zoom-in');
 const sidebarZoomOut = document.getElementById('sidebar-zoom-out');
-const SB_SCALE_STEP = 0.1, SB_SCALE_MIN = 0.6, SB_SCALE_MAX = 2.2;
-const SB_GAP_STEP = 5, SB_GAP_MIN = 0, SB_GAP_MAX = 40;
+const SB_SCALE_STEP = 0.025, SB_SCALE_MIN = 0.6, SB_SCALE_MAX = 2.2;
+const SB_GAP_STEP = 1.25, SB_GAP_MIN = 0, SB_GAP_MAX = 40;
 let sbScale = 1, sbGap = 6;
 
 function applySidebarZoom() {
@@ -928,13 +928,13 @@ function applySidebarZoom() {
   sidebar.style.setProperty('--sb-gap', sbGap + 'px');
 }
 sidebarZoomIn.addEventListener('click', () => {
-  sbScale = Math.min(SB_SCALE_MAX, +(sbScale + SB_SCALE_STEP).toFixed(2));
-  sbGap   = Math.min(SB_GAP_MAX, sbGap + SB_GAP_STEP);
+  sbScale = Math.min(SB_SCALE_MAX, +(sbScale + SB_SCALE_STEP).toFixed(3));
+  sbGap   = Math.min(SB_GAP_MAX, +(sbGap + SB_GAP_STEP).toFixed(2));
   applySidebarZoom();
 });
 sidebarZoomOut.addEventListener('click', () => {
-  sbScale = Math.max(SB_SCALE_MIN, +(sbScale - SB_SCALE_STEP).toFixed(2));
-  sbGap   = Math.max(SB_GAP_MIN, sbGap - SB_GAP_STEP);
+  sbScale = Math.max(SB_SCALE_MIN, +(sbScale - SB_SCALE_STEP).toFixed(3));
+  sbGap   = Math.max(SB_GAP_MIN, +(sbGap - SB_GAP_STEP).toFixed(2));
   applySidebarZoom();
 });
 
