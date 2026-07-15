@@ -44,6 +44,11 @@ def serve_solve():
     return FileResponse(BASE_DIR / "solve.html")
 
 
+@app.get("/test")
+def serve_test():
+    return FileResponse(BASE_DIR / "test.html")
+
+
 @app.get("/style.css")
 def serve_css():
     return FileResponse(BASE_DIR / "style.css")
@@ -52,6 +57,16 @@ def serve_css():
 @app.get("/script.js")
 def serve_js():
     return FileResponse(BASE_DIR / "script.js", media_type="application/javascript")
+
+
+@app.get("/test.css")
+def serve_test_css():
+    return FileResponse(BASE_DIR / "test.css")
+
+
+@app.get("/test.js")
+def serve_test_js():
+    return FileResponse(BASE_DIR / "test.js", media_type="application/javascript")
 
 
 @app.get("/api/puzzle")

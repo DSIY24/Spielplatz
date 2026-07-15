@@ -2,3 +2,5 @@ changes.txt
 .venv/
 puzzle.json
 __pycache__/
+
+test/
