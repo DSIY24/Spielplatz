@@ -1,1 +1,4 @@
 changes.txt
+.venv/
+puzzle.json
+__pycache__/

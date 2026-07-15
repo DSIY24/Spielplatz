@@ -219,26 +219,40 @@ body.gender-hints .article-block[data-genders="m-f-n"] .art-label {
 #undo-redo button:hover:not(:disabled) { box-shadow: 2px 2px 0 #1a1a1a; background: #f7f5f0; }
 #undo-redo button:disabled { opacity: 0.3; cursor: not-allowed; }
 #undo-redo button svg { width: 14px; height: 14px; }
-#upload-btn {
+#top-bar-actions {
   position: absolute;
   right: 16px;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+#upload-btn, #save-exercise-btn {
+  display: flex;
+  align-items: center;
   gap: 7px;
-  padding: 9px 14px;
   border: 1.5px solid #2a2a2a;
   background: #fff;
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
   color: #1a1a1a;
   cursor: pointer;
   letter-spacing: 0.04em;
   white-space: nowrap;
   transition: box-shadow 0.1s, background 0.1s;
 }
+#upload-btn {
+  padding: 9px 14px;
+  font-size: 12px;
+}
 #upload-btn:hover { box-shadow: 3px 3px 0 #1a1a1a; background: #f7f5f0; }
 #upload-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 #file-input { display: none; }
+#save-exercise-btn {
+  padding: 6px 10px;
+  font-size: 11px;
+  background: #fde047;
+}
+#save-exercise-btn:hover { box-shadow: 3px 3px 0 #1a1a1a; background: #facc15; }
+#save-exercise-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
 #canvas {
   flex: 1;
   position: relative;
@@ -428,6 +442,8 @@ body.gender-hints .article-block[data-genders="m-f-n"] .art-label {
   z-index: 45;
 }
 .block:hover { box-shadow: 3px 3px 0 #1a1a1a; }
+.block.locked { cursor: default; }
+.block.locked:hover { box-shadow: none; }
 .block.dragging { z-index: 999; box-shadow: 6px 6px 0 rgba(0,0,0,0.15); cursor: grabbing; }
 .block.selected { outline: 2px solid rgba(59,130,246,0.8); outline-offset: 2px; }
 .article-block {

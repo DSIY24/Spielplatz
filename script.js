@@ -13,7 +13,7 @@ const ARTICLE_LABEL = {
   des:'des',eines:'eines'
 };
 
-const SUFFIX_LABELS = { n:'-n', en:'-en', s:'-s', es:'-es' };
+const SUFFIX_LABELS = { n:'-n', en:'-en', s:'-s', es:'-es', ns:'-ns', ens:'-ens' };
 
 function isMono(word) { return (word.match(/[aeiouäöüAEIOUÄÖÜ]+/g)||[]).length === 1; }
 function endsSibilant(word) { return /[sßzx]$/i.test(word) || /sch$/i.test(word); }
@@ -23,8 +23,9 @@ function correctSuffix(noun, caseType) {
     return caseType === 'nominativ' ? null : (/e$/i.test(text) ? 'n' : 'en');
   }
   if (decl === 'mixed') {
-    if (caseType === 'nominativ' || caseType === 'genitiv') return null;
-    return /e$/i.test(text) ? 'n' : 'en';
+    if (caseType === 'nominativ') return null;
+    const weak = /e$/i.test(text) ? 'n' : 'en';
+    return caseType === 'genitiv' ? weak + 's' : weak;
   }
   if (caseType !== 'genitiv') return null;
   if (gender === 'die') return null;
@@ -127,6 +128,7 @@ const btnDativ        = document.getElementById('btn-dativ');
 const btnGenitiv      = document.getElementById('btn-genitiv');
 const btnUndo         = document.getElementById('btn-undo');
 const btnRedo         = document.getElementById('btn-redo');
+const saveExerciseBtn = document.getElementById('save-exercise-btn');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let dragState      = null;
@@ -160,10 +162,11 @@ function _snapshot() {
       left:          b.style.left,
       top:           b.style.top,
       className:     b.className,
+      locked:        b.classList.contains('locked'),
       pairedId:      b._meta.paired ? b._meta.paired._id : null,
       suffixPairedId:b._meta.type === 'noun' ? (b._meta.suffixPaired ? b._meta.suffixPaired._id : null) : null
     })),
-    zones: zones.map(z => ({ case: z.case, x: z.x, y: z.y, w: z.w, h: z.h }))
+    zones: zones.map(z => ({ case: z.case, x: z.x, y: z.y, w: z.w, h: z.h, locked: z.el.classList.contains('locked') }))
   };
 }
 
@@ -194,7 +197,7 @@ function _applySnapshot(snap) {
   const idMap = {};
   snap.blocks.forEach(bd => {
     const el = bd.type === 'noun'
-      ? _makeNounBlock(bd.nounData, parseInt(bd.left), parseInt(bd.top))
+      ? _makeNounBlock(bd.nounData, parseInt(bd.left), parseInt(bd.top), bd.locked)
       : bd.type === 'suffix'
         ? _makeSuffixBlock(bd.suffix, parseInt(bd.left), parseInt(bd.top))
         : _makeArticleBlock(bd.article, parseInt(bd.left), parseInt(bd.top));
@@ -212,7 +215,7 @@ function _applySnapshot(snap) {
     }
   });
   // rebuild zones
-  snap.zones.forEach(zd => _makeZone(zd.case, zd.x, zd.y, zd.w, zd.h));
+  snap.zones.forEach(zd => _makeZone(zd.case, zd.x, zd.y, zd.w, zd.h, zd.locked));
   _noRecord = false;
   _updateUndoRedo();
 }
@@ -247,15 +250,15 @@ function isOverBin(el) {
 }
 
 // ── Block factories (internal — no history push) ──────────────────────────────
-function _makeNounBlock(noun, x, y) {
+function _makeNounBlock(noun, x, y, locked = false) {
   const el = document.createElement('div');
-  el.className = 'block noun-block';
+  el.className = 'block noun-block' + (locked ? ' locked' : '');
   el.style.left = x + 'px'; el.style.top = y + 'px';
   el.textContent = noun.n;
   el.dataset.type = 'noun'; el.dataset.article = noun.a;
   el._meta = { type: 'noun', data: noun, paired: null, suffixPaired: null };
   el._id = ++_blockIdSeq;
-  el.addEventListener('mousedown', onBlockMouseDown);
+  if (!locked) el.addEventListener('mousedown', onBlockMouseDown);
   canvas.appendChild(el); allBlocks.push(el);
   return el;
 }
@@ -344,14 +347,15 @@ function applyMarqueeSelection(sx, sy, ex, ey) {
   clearSelection();
   const cr = canvas.getBoundingClientRect();
   for (const b of allBlocks) {
+    if (b.classList.contains('locked')) continue;
     const br = b.getBoundingClientRect();
     const bx = br.left - cr.left + br.width/2, by = br.top - cr.top + br.height/2;
     if (bx >= minX && bx <= maxX && by >= minY && by <= maxY) {
       selectedBlocks.add(b); b.classList.add('selected');
-      if (b._meta.paired && !selectedBlocks.has(b._meta.paired)) {
+      if (b._meta.paired && !b._meta.paired.classList.contains('locked') && !selectedBlocks.has(b._meta.paired)) {
         selectedBlocks.add(b._meta.paired); b._meta.paired.classList.add('selected');
       }
-      if (b._meta.suffixPaired && !selectedBlocks.has(b._meta.suffixPaired)) {
+      if (b._meta.suffixPaired && !b._meta.suffixPaired.classList.contains('locked') && !selectedBlocks.has(b._meta.suffixPaired)) {
         selectedBlocks.add(b._meta.suffixPaired); b._meta.suffixPaired.classList.add('selected');
       }
     }
@@ -370,24 +374,34 @@ function applyMarqueeSelection(sx, sy, ex, ey) {
 // ── Zone drawing activation ───────────────────────────────────────────────────
 function activateDrawing(caseType) {
   drawingCase = drawingCase === caseType ? null : caseType;
-  btnAkkusativ.classList.toggle('active', drawingCase === 'akkusativ');
-  btnDativ.classList.toggle('active',     drawingCase === 'dativ');
-  btnGenitiv.classList.toggle('active',   drawingCase === 'genitiv');
+  if (btnAkkusativ) btnAkkusativ.classList.toggle('active', drawingCase === 'akkusativ');
+  if (btnDativ)     btnDativ.classList.toggle('active',     drawingCase === 'dativ');
+  if (btnGenitiv)   btnGenitiv.classList.toggle('active',   drawingCase === 'genitiv');
   canvas.className = drawingCase ? 'drawing-' + drawingCase : '';
 }
-btnAkkusativ.addEventListener('click', () => activateDrawing('akkusativ'));
-btnDativ.addEventListener('click',     () => activateDrawing('dativ'));
-btnGenitiv.addEventListener('click',   () => activateDrawing('genitiv'));
+if (btnAkkusativ && btnDativ && btnGenitiv) {
+  btnAkkusativ.addEventListener('click', () => activateDrawing('akkusativ'));
+  btnDativ.addEventListener('click',     () => activateDrawing('dativ'));
+  btnGenitiv.addEventListener('click',   () => activateDrawing('genitiv'));
+}
 
 // ── Zone factory (internal — used by both user drawing and applySnapshot) ─────
-function _makeZone(caseType, x, y, w, h) {
+function _makeZone(caseType, x, y, w, h, locked = false) {
   const el = document.createElement('div');
-  el.className = 'zone ' + caseType;
+  el.className = 'zone ' + caseType + (locked ? ' locked' : '');
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   const label = document.createElement('div');
   label.className = 'zone-label';
   label.textContent = { akkusativ:'Akkusativ', dativ:'Dativ', genitiv:'Genitiv' }[caseType] || caseType;
   el.appendChild(label);
+
+  if (locked) {
+    canvas.insertBefore(el, canvas.firstChild);
+    zones.push({ el, case: caseType, x, y, w, h });
+    reEvaluateAllPairs();
+    return;
+  }
+
   const handle = document.createElement('div');
   handle.className = 'zone-handle';
   handle.innerHTML = `<svg viewBox="0 0 12 12" fill="currentColor"><circle cx="3.5" cy="2" r="1"/><circle cx="8.5" cy="2" r="1"/><circle cx="3.5" cy="6" r="1"/><circle cx="8.5" cy="6" r="1"/><circle cx="3.5" cy="10" r="1"/><circle cx="8.5" cy="10" r="1"/></svg>`;
@@ -800,69 +814,72 @@ document.querySelectorAll('.suffix-source').forEach(src => {
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
-function renderResults(results) {
-  if (!results.length) {
-    searchResultsEl.classList.remove('open');
-    searchResultsEl.innerHTML = '';
-    return;
+// (absent in solve mode — no search bar there)
+if (searchInput && searchResultsEl) {
+  function renderResults(results) {
+    if (!results.length) {
+      searchResultsEl.classList.remove('open');
+      searchResultsEl.innerHTML = '';
+      return;
+    }
+    searchResultsEl.innerHTML = results.map(r =>
+      `<div class="result-item"
+          data-word="${r.word}"
+          data-article="${r.article}"
+          data-type="noun"
+          data-english="${r.english}">
+        <span class="res-badge res-noun">noun</span>
+        <span class="result-noun">${r.word}</span>
+        <span class="result-meaning">${r.english}</span>
+      </div>`
+    ).join('');
+    searchResultsEl.classList.add('open');
   }
-  searchResultsEl.innerHTML = results.map(r =>
-    `<div class="result-item"
-        data-word="${r.word}"
-        data-article="${r.article}"
-        data-type="noun"
-        data-english="${r.english}">
-      <span class="res-badge res-noun">noun</span>
-      <span class="result-noun">${r.word}</span>
-      <span class="result-meaning">${r.english}</span>
-    </div>`
-  ).join('');
-  searchResultsEl.classList.add('open');
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim();
+    if (!q) { searchResultsEl.classList.remove('open'); searchResultsEl.innerHTML = ''; return; }
+    const lq = q.toLowerCase();
+    const results = NOUNS
+      .filter(n => n.n.toLowerCase().includes(lq) || n.e.toLowerCase().includes(lq))
+      .slice(0, 12)
+      .map(n => ({ word: n.n, article: n.a, english: n.e }));
+    renderResults(results);
+  });
+
+  searchResultsEl.addEventListener('mousedown', e => {
+    const item = e.target.closest('.result-item');
+    if (!item) return;
+    e.preventDefault();
+    // only nouns can be placed as blocks for now
+    if (item.dataset.type !== 'noun') {
+      showToast(`"${item.dataset.word}" is a ${item.dataset.type} — only nouns can be placed as blocks for now.`);
+      searchResultsEl.classList.remove('open');
+      searchInput.value = '';
+      return;
+    }
+    const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
+              || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
+    searchResultsEl.classList.remove('open'); searchInput.value = '';
+    const cr = canvas.getBoundingClientRect();
+    createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const item = searchResultsEl.querySelector('.result-item');
+    if (!item) return;
+    const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
+              || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
+    searchResultsEl.classList.remove('open'); searchInput.value = '';
+    const cr = canvas.getBoundingClientRect();
+    createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
+  });
+
+  document.addEventListener('mousedown', e => {
+    if (!searchResultsEl.contains(e.target) && e.target !== searchInput) searchResultsEl.classList.remove('open');
+  });
 }
-
-searchInput.addEventListener('input', () => {
-  const q = searchInput.value.trim();
-  if (!q) { searchResultsEl.classList.remove('open'); searchResultsEl.innerHTML = ''; return; }
-  const lq = q.toLowerCase();
-  const results = NOUNS
-    .filter(n => n.n.toLowerCase().includes(lq) || n.e.toLowerCase().includes(lq))
-    .slice(0, 12)
-    .map(n => ({ word: n.n, article: n.a, english: n.e }));
-  renderResults(results);
-});
-
-searchResultsEl.addEventListener('mousedown', e => {
-  const item = e.target.closest('.result-item');
-  if (!item) return;
-  e.preventDefault();
-  // only nouns can be placed as blocks for now
-  if (item.dataset.type !== 'noun') {
-    showToast(`"${item.dataset.word}" is a ${item.dataset.type} — only nouns can be placed as blocks for now.`);
-    searchResultsEl.classList.remove('open');
-    searchInput.value = '';
-    return;
-  }
-  const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
-            || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
-  searchResultsEl.classList.remove('open'); searchInput.value = '';
-  const cr = canvas.getBoundingClientRect();
-  createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
-});
-
-searchInput.addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const item = searchResultsEl.querySelector('.result-item');
-  if (!item) return;
-  const noun = NOUNS.find(n => n.n === item.dataset.word && n.a === item.dataset.article)
-            || { n: item.dataset.word, a: item.dataset.article, e: item.dataset.english };
-  searchResultsEl.classList.remove('open'); searchInput.value = '';
-  const cr = canvas.getBoundingClientRect();
-  createNounBlock(noun, 130+Math.random()*Math.max(100,cr.width-350), 40+Math.random()*Math.max(60,cr.height-160));
-});
-
-document.addEventListener('mousedown', e => {
-  if (!searchResultsEl.contains(e.target) && e.target !== searchInput) searchResultsEl.classList.remove('open');
-});
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
@@ -875,20 +892,23 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Upload ────────────────────────────────────────────────────────────────────
-uploadBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', async () => {
-  const file = fileInput.files[0]; if (!file) return; fileInput.value='';
-  loadingOverlay.classList.add('show');
-  try {
-    const text = await file.text();
-    if (!text.trim()) { showToast('Das Dokument scheint leer zu sein.', true); return; }
-    const nouns = extractNounsFromText(text);
-    if (!nouns||!nouns.length) { showToast('Keine Nomen im Dokument gefunden.', true); return; }
-    scatterNounBlocks(nouns);
-    showToast(`${nouns.length} Nomen gefunden!`);
-  } catch(err) { console.error(err); showToast('Fehler beim Verarbeiten.', true); }
-  finally { loadingOverlay.classList.remove('show'); }
-});
+// (absent in solve mode — no way to add extra nouns to a fixed exercise)
+if (uploadBtn && fileInput) {
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0]; if (!file) return; fileInput.value='';
+    loadingOverlay.classList.add('show');
+    try {
+      const text = await file.text();
+      if (!text.trim()) { showToast('Das Dokument scheint leer zu sein.', true); return; }
+      const nouns = extractNounsFromText(text);
+      if (!nouns||!nouns.length) { showToast('Keine Nomen im Dokument gefunden.', true); return; }
+      scatterNounBlocks(nouns);
+      showToast(`${nouns.length} Nomen gefunden!`);
+    } catch(err) { console.error(err); showToast('Fehler beim Verarbeiten.', true); }
+    finally { loadingOverlay.classList.remove('show'); }
+  });
+}
 function extractNounsFromText(text) {
   const tokens = text.split(/[^a-zA-ZäöüÄÖÜß]+/).filter(Boolean);
   const seen = new Set();
@@ -913,6 +933,28 @@ function scatterNounBlocks(nouns) {
   });
   _noRecord = false;
   pushHistory();
+}
+
+// ── Save exercise (editor only — publishes the current layout to /solve) ──────
+if (saveExerciseBtn) {
+  saveExerciseBtn.addEventListener('click', async () => {
+    const nouns = allBlocks
+      .filter(b => b._meta.type === 'noun')
+      .map(b => ({ ...b._meta.data, x: parseInt(b.style.left), y: parseInt(b.style.top) }));
+    const zonesPayload = zones.map(z => ({ case: z.case, x: z.x, y: z.y, w: z.w, h: z.h }));
+    try {
+      const res = await fetch('/api/puzzle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nouns, zones: zonesPayload })
+      });
+      if (!res.ok) throw new Error('save failed: ' + res.status);
+      showToast('Übung gespeichert! Erreichbar unter /solve.');
+    } catch (err) {
+      console.error(err);
+      showToast('Fehler beim Speichern der Übung.', true);
+    }
+  });
 }
 
 // ── Sidebar zoom ──────────────────────────────────────────────────────────────
@@ -1180,15 +1222,15 @@ canvas.addEventListener('contextmenu', e => {
   _ctxCursor = { x: e.clientX - cr.left, y: e.clientY - cr.top };
 
   const blockEl = e.target.closest('.block');
-  if (blockEl && allBlocks.includes(blockEl)) {
+  if (blockEl && allBlocks.includes(blockEl) && !blockEl.classList.contains('locked')) {
     if (!selectedBlocks.has(blockEl)) {
       clearSelection();
       selectedBlocks.add(blockEl); blockEl.classList.add('selected');
-      if (blockEl._meta.paired) {
+      if (blockEl._meta.paired && !blockEl._meta.paired.classList.contains('locked')) {
         selectedBlocks.add(blockEl._meta.paired);
         blockEl._meta.paired.classList.add('selected');
       }
-      if (blockEl._meta.suffixPaired) {
+      if (blockEl._meta.suffixPaired && !blockEl._meta.suffixPaired.classList.contains('locked')) {
         selectedBlocks.add(blockEl._meta.suffixPaired);
         blockEl._meta.suffixPaired.classList.add('selected');
       }
@@ -1201,5 +1243,23 @@ document.addEventListener('mousedown', e => {
   if (!ctxMenu.contains(e.target)) _closeCtxMenu();
 });
 
-// ── Initial history state ─────────────────────────────────────────────────────
-pushHistory();
+// ── Initial state ─────────────────────────────────────────────────────────────
+if (window.SOLVE_MODE) {
+  // Load the exercise saved from the editor: fixed noun blocks + case zones,
+  // stripped of any article/suffix pairing so the solver starts from scratch.
+  fetch('/api/puzzle')
+    .then(res => res.json())
+    .then(puzzle => {
+      _noRecord = true;
+      (puzzle.nouns || []).forEach(nd => {
+        const { x, y, ...noun } = nd;
+        _makeNounBlock(noun, x, y, true);
+      });
+      (puzzle.zones || []).forEach(zd => _makeZone(zd.case, zd.x, zd.y, zd.w, zd.h, true));
+      _noRecord = false;
+      pushHistory();
+    })
+    .catch(err => { console.error(err); showToast('Konnte Übung nicht laden.', true); });
+} else {
+  pushHistory();
+}

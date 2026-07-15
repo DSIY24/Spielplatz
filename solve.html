@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spielplatz</title>
+  <title>Spielplatz — Solve</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -36,23 +36,6 @@
     </button>
     <button id="btn-redo" title="Redo (Ctrl+Y)" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10H10a4 4 0 0 0 0 8h7"/><polyline points="21 6 21 10 17 10"/></svg>
-    </button>
-  </div>
-  <input id="search-input" type="text" placeholder="Suche nach einem Nomen… (z.B. Haus, Katze)">
-  <div id="search-results"></div>
-  <div id="top-bar-actions">
-    <button id="upload-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      Upload Doc
-    </button>
-    <input type="file" id="file-input" accept=".txt">
-    <button id="save-exercise-btn" title="Save this layout as the /solve exercise">
-      Save Exercise
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>
-      </svg>
     </button>
   </div>
 </div>
@@ -87,11 +70,6 @@
         <div class="article-source" data-article="des"><span class="art-label">des</span></div>
         <div class="article-source" data-article="eines"><span class="art-label">eines</span></div>
       </div>
-    </div>
-    <div id="case-selector">
-      <div class="case-btn akkusativ" id="btn-akkusativ">Akkusativ</div>
-      <div class="case-btn dativ"     id="btn-dativ">Dativ</div>
-      <div class="case-btn genitiv"   id="btn-genitiv">Genitiv</div>
     </div>
     <div id="suffixes-wrap">
       <div class="sidebar-section">
@@ -131,6 +109,7 @@
   <div class="ctx-item" id="ctx-align">Align vertically</div>
 </div>
 
+<script>window.SOLVE_MODE = true;</script>
 <script src="script.js"></script>
 </body>
 </html>
